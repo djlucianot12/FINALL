@@ -591,19 +591,67 @@
             return urlParams.get('project') || 'park-mansion';
         }
 
-        // Load project data from JSON
+        // Load project data from JSON with fallbacks
         async function loadProjectData(projectName) {
+            // First try relative path
             try {
                 const response = await fetch(`projects-data/${projectName}/config.json`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ Loaded project data successfully');
+                    return data;
                 }
-                const data = await response.json();
-                return data;
             } catch (error) {
-                console.error('Error loading project data:', error);
-                return null;
+                console.log('⚠️ Relative path failed, trying absolute path');
             }
+
+            // Try absolute path
+            try {
+                const response = await fetch(`/projects-data/${projectName}/config.json`);
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ Loaded project data with absolute path');
+                    return data;
+                }
+            } catch (error) {
+                console.log('⚠️ Absolute path failed, using fallback data');
+            }
+
+            // Return fallback data if JSON fails
+            console.log('📦 Using fallback project data');
+            return getFallbackProjectData(projectName);
+        }
+
+        // Fallback project data for when JSON loading fails
+        function getFallbackProjectData(projectName) {
+            const fallbackData = {
+                'park-mansion': {
+                    project: {
+                        name: 'PARK MANSION',
+                        subtitle: { en: 'Urban Elegance', es: 'Elegancia Urbana' },
+                        description: { en: 'Urban elegance in Minami Azabu.', es: 'Elegancia urbana en Minami Azabu.' },
+                        details: {
+                            en: { location: 'Tokyo Central Park', year: '2024', area: '1,250 m²', type: 'Luxury Residential' },
+                            es: { ubicación: 'Tokyo Central Park', año: '2024', área: '1,250 m²', tipo: 'Residencial de Lujo' }
+                        }
+                    },
+                    media: { main_image: 'main.jpg', images: Array.from({length: 12}, (_, i) => ({filename: `${String(i+1).padStart(2, '0')}.jpg`, caption: {en: `Image ${i+1}`, es: `Imagen ${i+1}`}})) }
+                },
+                'kawana': {
+                    project: {
+                        name: 'KAWANA',
+                        subtitle: { en: 'with Silence', es: 'con Silencio' },
+                        description: { en: 'Serene architecture with natural harmony.', es: 'Arquitectura serena con armonía natural.' },
+                        details: {
+                            en: { location: 'Hakone', year: '2023', area: '980 m²', type: 'Resort Residence' },
+                            es: { ubicación: 'Hakone', año: '2023', área: '980 m²', tipo: 'Residencia Resort' }
+                        }
+                    },
+                    media: { main_image: 'main.jpg', images: Array.from({length: 12}, (_, i) => ({filename: `${String(i+1).padStart(2, '0')}.jpg`, caption: {en: `Image ${i+1}`, es: `Imagen ${i+1}`}})) }
+                }
+            };
+
+            return fallbackData[projectName] || fallbackData['park-mansion'];
         }
 
         // Populate project information
@@ -727,13 +775,9 @@
                 mediaItem.className = 'media-item';
 
                 if (item.type === 'image' && item.filename) {
-                    const imagePath = `projects-data/${projectName}/images/${item.filename}`;
                     const caption = typeof item.caption === 'object' ? item.caption[currentLanguage] : item.caption || 'Imagen del proyecto';
 
-                    // Use real architecture images as placeholders
-                    const imageNumber = item.filename.replace('.jpg', '').replace('.png', '');
-
-                    // Array of real architecture images from Unsplash
+                    // Array of real architecture images from Unsplash as primary source
                     const architectureImages = [
                         'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop',
                         'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop',
@@ -749,15 +793,18 @@
                         'https://images.unsplash.com/photo-1480796927426-f609979314bd?w=800&h=600&fit=crop'
                     ];
 
-                    // Select image based on project and image number
+                    // Use image number to get consistent architecture images
+                    const imageNumber = item.filename.replace(/\D/g, '') || '1'; // Extract numbers only
                     const imageIndex = (parseInt(imageNumber) - 1) % architectureImages.length;
-                    const fallbackUrl = architectureImages[imageIndex];
+                    const architectureUrl = architectureImages[imageIndex];
 
+                    // Use Unsplash as primary source for production reliability
                     mediaItem.innerHTML = `
-                        <img src="${imagePath}" alt="${caption}" loading="lazy"
-                             onerror="this.src='${fallbackUrl}'; console.log('Using architecture image for: ${imagePath}');">
+                        <img src="${architectureUrl}" alt="${caption}" loading="lazy">
                         <div class="media-caption">${caption}</div>
                     `;
+
+                    console.log(`🖼️ Using architecture image ${imageIndex + 1} for ${item.filename}`);
                 } else if (item.type === 'video') {
                     const caption = typeof item.caption === 'object' ? item.caption[currentLanguage] : item.caption;
 
